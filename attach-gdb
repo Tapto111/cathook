@@ -6,6 +6,7 @@ RUNCMD="sudo -u $RUNUSER"
 $RUNCMD bash ./scripts/updater true
 $RUNCMD bash ./report-crash true
 
+# Get the process ID of the 64-bit TF2 (hl2_linux)
 line=$(pgrep -u $RUNUSER hl2_linux)
 arr=($line)
 
@@ -13,35 +14,29 @@ if [ $# == 1 ]; then
     proc=$1
 else
     if [ ${#arr[@]} == 0 ]; then
-        echo TF2 isn\'t running!
+        echo "TF2 isn't running!"
         exit
     fi
     proc=${arr[0]}
 fi
 
-echo Running instances: "${arr[@]}"
-echo Attaching to "$proc"
+echo "Running instances: ${arr[@]}"
+echo "Attaching to $proc"
 
-#sudo ./detach $inst bin/libcathook.so
-
-#if grep -q "$(realpath bin/libcathook.so)" /proc/"$proc"/maps; then
-#  echo already loaded
-#  exit
-#fi
-
+# Copy the 64-bit libcathook.so
 FILENAME="/tmp/.gl$(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 6)"
-
 cp "bin/libcathook.so" "$FILENAME"
 
-echo loading "$FILENAME" to "$proc"
+# Attach using gdb and load the 64-bit library
 gdbbin="gdb"
-$gdbbin -n -q -batch                                                        \
-    -ex "attach $proc"                                                  \
-    -ex "echo \033[1mCalling dlopen\033[0m\n"                           \
-    -ex "call ((void*(*)(const char*, int))dlopen)(\"$FILENAME\", 1)"   \
-    -ex "echo \033[1mCalling dlerror\033[0m\n"                          \
-    -ex "call ((char*(*)(void))dlerror)()"                              \
-    -ex "continue"                                                      \
+$gdbbin -n -q -batch \
+    -ex "attach $proc" \
+    -ex "echo \033[1mCalling dlopen\033[0m\n" \
+    -ex "call ((void*(*)(const char*, int))dlopen)(\"$FILENAME\", 1)" \
+    -ex "echo \033[1mCalling dlerror\033[0m\n" \
+    -ex "call ((char*(*)(void))dlerror)()" \
+    -ex "continue" \
     -ex "backtrace"
 
-rm $FILENAME
+# Remove the temporary file
+rm "$FILENAME"
